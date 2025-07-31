@@ -1,11 +1,14 @@
-# LunaRover
+# LunaRover (Manual)
 ## Introduction
+
 I have a dog named Luna. I sometimes feel bad when I leave Luna to entertain herself. I wanted a cool new project to work on. Considering all that, I present to you.... the LunaRover. This project, M25, is a precursor to the more advanced project, A25. Before I can make a vehicle automated I need to demonstrate I can make it work manually.
 
 ## Proposed solution
 Brushed motor radio controlled (rc) car modified to drive autonomously with the help of a raspberry pi. You're probably wondedering... why on earth would you use a brushed motor rc car. Well... I got one for free!
+
 ## Method
-### Step 1 - How my rc car works, and retrofitting my own circuitry.
+### Step 1 - Figuring out how my rc car works and retrofitting my own circuitry
+
 I was fortunate enough to be given an rc car for free by my uncle. What's great about the rc car that I got is that it is really easy to understand what is going on, and it meets my torque requirements!
 
 So.... how does it work? A radio transponder sends out a signal to a transceiver (mine was an acoms transceiver). The transceiver then interprets the signal and sends a Pulse Width Modulated (PWM) signal to one of two servos. The first servo controls direction of the front wheels, the second servo controls a mechanical speed controller - which is sort of like a potentiometer for scaling output voltage to the brushed dc motor driving the rear wheels. It's important to note that there is a Battery Eliminator Circuit (BEC) in the acoms receiver which enables the 7.2V from the battery to be stepped down to within the operating voltage range for servo motors.
@@ -14,8 +17,15 @@ So, easy right.... well, a bit, but not entirely. My servo motor was a hand-me-d
 
 ![Circuit Diagram](./circuit.PNG)
 
-### Step 2 - Firmware development
-Raspberry Pi 5's... just get a 4 and save yourself the hassle. Previously popular GPIO libraries can't be used on the Pi 5, which means you'll have to use another. I used the gpiod library to control my servos - as shown below:
+### Step 2 - Uploading an operating system to the raspberry pi
+
+Without an operating system you're going to have some problems using your raspberry pi.... so definitely don't skip this step. For this step you'll need a microsd card, someway to connect that microsd card to your computer, and [raspberry pi imager software](https://www.raspberrypi.com/software/). Make sure to go to settings and take note of your hostname, user, password, and ensure wi-fi credentials are correct! I had some issues with this step... hopefully you won't.
+
+### Step 3 - Developing the firmware
+
+Raspberry Pi 5's... just get a 4 and save yourself the hassle. Previously popular GPIO libraries can't be used on the Pi 5, which means you'll have to use another. I used the gpiod library to control my servos - as shown below. In the end I decided to operate my brushed DC motor for X time whenever the up-arrow was pressed, as the motor was far more powerful than I realised and I didn't want to convert that motor speed to more torque with additional gears.
+
+I wrote this code after connecting to my raspberry pi using Secure Socket Shell (SSH) and using the "nano" command.
 
 ```
 
@@ -164,11 +174,16 @@ if __name__ == '__main__':
 
 ```
 
-### Step 3 - Upload operating system to raspberry pi and emulate program for arduino (c++) into python
-Logic is exactly the same as step 2, just written in python - to be used with my raspberry pi.
+### Step 4 - Remotely operate with raspberry pi
 
-#### Step 4 - Remotely operate with raspberry pi
-...Need boost converter so can use rc car provided batteries first, then should work a treat!
+SSH into the pi then run the code using python3 [file_name]. Forward to go forward, right to turn wheels right, left to turn, down to turn wheels to their central position. Alternatively you can control it using the servo number and the desired position (e.g 1 left, or 2 max).
 
-## Next Steps
-* Make plan. What do I need? Thinking to 1. get rc car then modify so that can adjust output based on output from controller - which is connected to the Raspberry Pi 5, 2. position camera such that no motor output when grass is not identified in top quadrant of the screen (so stops at garden boundary) 3. such that movement is somewhat random but stops moving when senses object within close distance using lidar.
+## Project overview
+
+### Main lesson learned
+
+Don't try and make your own drivetrain using a 3D printer with terrible tolerances and a slow extrusion speed - not worth it.
+
+### Next steps
+
+Make the rover autonomous. See LunaRoverA25 project.
