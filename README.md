@@ -36,7 +36,7 @@ import threading
 
 # GPIO chip and pins (BCM numbering)
 CHIP = 'gpiochip0'
-SERVO1_PIN = 18  # Steering servo on GPIO 24
+SERVO1_PIN = 24  # Steering servo on GPIO 24
 SERVO2_PIN = 23  # Speed servo on GPIO 23
 
 # PWM period (50Hz = 20ms)
