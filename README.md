@@ -1,189 +1,196 @@
-# LunaRover (Manual)
-## Introduction
+# LunaRoverM25-V2
+LunaRoverA25 had some issues with a. torque, b. steering. LunaRoverM25-V2 aims to overcome these problems
 
-I have a dog named Luna. I sometimes feel bad when I leave Luna to entertain herself. I wanted a cool new project to work on. Considering all that, I present to you.... the LunaRover. This project, M25, is a precursor to the more advanced project, A25. Before I can make a vehicle automated I need to demonstrate I can make it work manually.
+## Bottom line up front
+LunaRoverV2 did address issues with torque and steering, but uncovered a swathe of other issues... most notably (in order of perceived importance): high latency control, drag (from weight and bad clearance), and spaghetti cables.
+
+As tempting as it is to just buy a really great looking tracked vehicle which can carry a 10kg payload (fro AliExpress), I've thought of some quick ways in which I think I can improve the LunaRover - which are: flip it upside down for more clearance (will remount electronics), replace control mechanism with a 2.4GHz transmitter and ESC.
+
+## Introduction
+I have a dog named Luna. I sometimes feel bad when I leave Luna to entertain herself. I wanted a cool new project to work on. Considering all that, I present to you.... the LunaRover.
+
+## What already exists?
+If I wanted to leave my dog in the garden to entertain herself, what products could I procure to achieve that? And how do those products compare to the real deal of me being with Luna? For example, I can give her a stick - which she will play with, but its nothing like the fun she has when I chase her around my garden. To get an understanding of that I thought it'd be useful to present a venn diagram with buckets for: how I currently entertain my dog, what autonomous systems exist, and what powered vehicles exist. The listed items within each bucket are by no means exhaustive, but inspire idea generation nonetheless.
+
+It surprises me that I couldn't find evidence of someone having created an autonomous vehicle to play with their dog... that's something that I've sought to resolve. Note that, this version is manual but by implementing logic from the LunaRoverA25-V1 it can be converted to be automatic (I just haven't got around to that yet as the grass is to wet to test it on in the winter)
 
 ## Proposed solution
-Brushed motor radio controlled (rc) car modified to drive autonomously with the help of a raspberry pi. You're probably wondedering... why on earth would you use a brushed motor rc car. Well... I got one for free!
+Create a radio controlled (rc) car which can drive autonomously at the flick of toggle. (this is just for the manual part though).
 
 ## Method
-### Step 1 - Figuring out how my rc car works and retrofitting my own circuitry
+### Design new RC car, with a customisable drivetrain
+#### Step 1 - Design the RC car
+The premise for designing my own RC car from scratch was to address the two failure points alluded to above:
+a. Not enough torque
+b. Steering mechanism getting caught in long grass
 
-I was fortunate enough to be given an rc car for free by my uncle. What's great about the rc car that I got is that it is really easy to understand what is going on, and it meets my torque requirements!
+Point "a" can be addressed by having a drivetrain where gear ratio can easily be adjusted, therefore enabling for RPM to be compensated for torque, or vice versa. Point "b" can be addressed by having a dual wheel drive (one motor attached to a wheel on each side), therefore cicumventing the need for a steering system.
 
-So.... how does it work? A radio transponder sends out a signal to a transceiver (mine was an acoms transceiver). The transceiver then interprets the signal and sends a Pulse Width Modulated (PWM) signal to one of two servos. The first servo controls direction of the front wheels, the second servo controls a mechanical speed controller - which is sort of like a potentiometer for scaling output voltage to the brushed dc motor driving the rear wheels. It's important to note that there is a Battery Eliminator Circuit (BEC) in the acoms receiver which enables the 7.2V from the battery to be stepped down to within the operating voltage range for servo motors.
+![Design](./LunaRoverMk2.png)
 
-So, easy right.... well, a bit, but not entirely. My servo motor was a hand-me-down, so naturally I was missing the transponder to control the rc car. So, I had to control the car another way... in the end I opted for a raspberry pi 5 - as I know I'd end up using it for the image detection later on. I stripped out the receiver and modified the circuitry slightly so that it looked like the below:
+#### Step 2 - Design the electronics
 
-![Circuit Diagram](./circuit.PNG)
+The circuit design allows for PWM signals to be sent from the raspberry pi to the brushed dc motors, via the motor drivers. To do that it is necessary that 3.3V logic signals from the raspberry pi are converted to 5V logic signals which can be interpreted by the BTS7960 motor driver. Different PWM signals are sent depending on the Radio Frequency (RF) data received.
 
-### Step 2 - Uploading an operating system to the raspberry pi
+![circuit design](./rc_car.svg)
 
-Without an operating system you're going to have some problems using your raspberry pi.... so definitely don't skip this step. For this step you'll need a microsd card, someway to connect that microsd card to your computer, and [raspberry pi imager software](https://www.raspberrypi.com/software/). Make sure to go to settings and take note of your hostname, user, password, and ensure wi-fi credentials are correct! I had some issues with this step... hopefully you won't.
+#### Step 3 - Design the firmware
 
-### Step 3 - Developing the firmware
-
-Raspberry Pi 5's... just get a 4 and save yourself the hassle. Previously popular GPIO libraries can't be used on the Pi 5, which means you'll have to use another. I used the gpiod library to control my servos - as shown below. In the end I decided to operate my brushed DC motor for X time whenever the up-arrow was pressed, as the motor was far more powerful than I realised and I didn't want to convert that motor speed to more torque with additional gears.
-
-I wrote this code after connecting to my raspberry pi using Secure Socket Shell (SSH) and using the "nano" command.
+Written in Python, this code runs the RF sniffer executable - which listens for rf signals at 433MHz. Data received by the RF sniffer is then translated into a set of actions, and subsequewntly to pulse width modulated (PWM) signals - which are sent to each of the two motors drivers. RF sniffer code (uncompiled c++) is shared beneath the main program code below.
 
 ```
-
-import gpiod
-import time
-import curses
+from gpiozero import PWMLED
 import threading
+import time
+import subprocess
+import os
 
-# GPIO chip and pins (BCM numbering)
-CHIP = 'gpiochip0'
-SERVO1_PIN = 24  # Steering servo on GPIO 24
-SERVO2_PIN = 23  # Speed servo on GPIO 23
+# Initialise motors
+motor1 = PWMLED(17)
+motor2 = PWMLED(27)
+motor1.on()
+motor1.value = 1
+motor2.on()
+motor2.value = 0
+motor1.frequency = 1000
+motor2.frequency = 1000
 
-# PWM period (50Hz = 20ms)
-PERIOD = 0.02
+def shifty_motor1(speed):
+	motor1.value = 1 - (int(speed)/100)
+def shifty_motor2(speed):
+	motor2.value = int(speed)/100
 
-# Pulse widths for Servo 1 (Steering) in seconds
-SERVO1_LEFT = 0.0001   # Partly left (e.g., 60°)
-SERVO1_CENTER = 0.009 # Central (e.g., 90°)
-SERVO1_RIGHT = 0.0017  # Partly right (e.g., 120°)
+# UPDATE THIS to the full path of your RFSniffer executable
+rf_sniffer_path = '/home/[pi_username]/433Utils/RPi_utils/RFSniffer'  # Change if your username/folder differs
 
-# Pulse widths for Servo 2 (Speed Controller) in seconds
-SERVO2_CENTRAL = 0.0013 # Central/stop (e.g., 90°)
-SERVO2_PARTIAL = 0.0016 # Forward partial speed (e.g., 110°)
-SERVO2_MAX = 0.002     # Forward maximum speed (e.g., 180°)
-SERVO2_REVERSE = 0.0009 # Reverse partial speed (e.g., 70°)
+#print("Listening for RF codes... (Press Ctrl+C to exit)")
 
-def send_pwm_burst(chip, pin, pulse_width, duration, return_to_central=False, central_pulse=SERVO2_CENTRAL):
-    """Send a burst of PWM signals to move the servo to the desired position."""
-    line = chip.get_line(pin)
-    line.request(consumer='servo', type=gpiod.LINE_REQ_DIR_OUT)
-    start_time = time.time()
-    while time.time() - start_time < duration:
-        line.set_value(1)
-        time.sleep(pulse_width)
-        line.set_value(0)
-        time.sleep(PERIOD - pulse_width)
-    if return_to_central and pin == SERVO2_PIN:
-        # Return Servo 2 to central position after duration
-        start_time = time.time()
-        while time.time() - start_time < duration:
-            line.set_value(1)
-            time.sleep(central_pulse)
-            line.set_value(0)
-            time.sleep(PERIOD - central_pulse)
-    line.release()
+# Run RFSniffer directly (no 'sudo' inside) – we'll run the whole script with sudo
+process = subprocess.Popen(
+    [rf_sniffer_path],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,  # Merge any errors into stdout
+    text=True,
+    bufsize=1,                 # Line-buffered
+    universal_newlines=True
+)
 
-def main(stdscr):
-    # Initialize curses
-    curses.cbreak()
-    stdscr.keypad(True)
-    stdscr.timeout(100)  # Non-blocking input with 100ms timeout
-    stdscr.addstr(0, 0, "Servo Control Commands:")
-    stdscr.addstr(1, 0, "- Servo 1 (Steering): '1 left', '1 center', '1 right'")
-    stdscr.addstr(2, 0, "- Servo 2 (Speed): Up arrow (forward), Down arrow (reverse)")
-    stdscr.addstr(3, 0, "- Quit: 'q'")
-    stdscr.addstr(5, 0, "Enter command or use arrow keys: ")
-    stdscr.refresh()
+os.environ['PYTHONUNBUFFERED'] = '1'  # Helps in some cases
 
-    chip = gpiod.Chip(CHIP)
-    command = ""
-    try:
-        while True:
-            try:
-                # Check for key press (non-blocking)
-                key = stdscr.getch()
-                if key == curses.KEY_UP:
-                    # Up arrow: Servo 2 forward (partial speed)
-                    threading.Thread(target=send_pwm_burst, args=(chip, SERVO2_PIN, SERVO2_PARTIAL, 0.4, True)).start()
-                    stdscr.addstr(6, 0, "Servo 2 set to partial speed (forward)  ")
-                    stdscr.refresh()
-                elif key == curses.KEY_DOWN:
-                    # Down arrow: Servo 2 reverse
-                    threading.Thread(target=send_pwm_burst, args=(chip, SERVO1_PIN, SERVO1_CENTER, 0.5, True)).start()
-                    stdscr.addstr(6, 0, "Centering           ")
-                    stdscr.refresh()
-                elif key == curses.KEY_RIGHT:
-                    threading.Thread(target=send_pwm_burst, args=(chip,SERVO1_PIN, SERVO1_RIGHT,0.5,False)).start()
-                    stdscr.addstr(6 ,0, "Turning right           ")
-                    stdscr.refresh()
-                elif key == curses.KEY_LEFT:
-                    threading.Thread(target=send_pwm_burst, args=(chip,SERVO1_PIN, SERVO1_LEFT,0.5,False)).start()
-                    stdscr.addstr(6, 0, "Turning left             ")
- 		    stdscr.refresh()
-                elif key != -1:  # Other key pressed
-                    char = chr(key).lower()
-                    if char == 'q':
-                        stdscr.addstr(6, 0, "Exiting...                            ")
-                        stdscr.refresh()
-                        break
-                    elif char == '\n':
-                        if command:
-                            try:
-                                servo, position = command.strip().split()
-                                if servo == '1':
-                                    if position == 'left':
-                                        send_pwm_burst(chip, SERVO1_PIN, SERVO1_LEFT, 0.5, False)
-                                        stdscr.addstr(6, 0, "Servo 1 set to partly left            ")
-                                    elif position == 'center':
-                                        send_pwm_burst(chip, SERVO1_PIN, SERVO1_CENTER, 0.5, False)
-                                        stdscr.addstr(6, 0, "Servo 1 set to central                ")
-                                    elif position == 'right':
-                                        send_pwm_burst(chip, SERVO1_PIN, SERVO1_RIGHT, 0.5, False)
-                                        stdscr.addstr(6, 0, "Servo 1 set to partly right           ")
-                                    else:
-                                        stdscr.addstr(6, 0, "Invalid position. Use 'left', 'center', or 'right' ")
-                                elif servo == '2':
-                                    if position == 'central':
-                                        send_pwm_burst(chip, SERVO2_PIN, SERVO2_CENTRAL)
-                                        stdscr.addstr(6, 0, "Servo 2 set to central (stop)         ")
-                                    elif position == 'partial':
-                                        threading.Thread(target=send_pwm_burst, args=(chip, SERVO2_PIN, SERVO2_PARTIAL, 0.4, True)).start()
-                                        stdscr.addstr(6, 0, "Servo 2 set to partial speed (forward) ")
-                                    elif position == 'max':
-                                        threading.Thread(target=send_pwm_burst, args=(chip, SERVO2_PIN, SERVO2_MAX, 0.5, True)).start()
-                                        stdscr.addstr(6, 0, "Servo 2 set to maximum speed (forward) ")
-                                    else:
-                                        stdscr.addstr(6, 0, "Invalid position. Use 'central', 'partial', or 'max' ")
-                                else:
-                                    stdscr.addstr(6, 0, "Invalid servo. Use '1' for steering or '2' for speed ")
-                                stdscr.refresh()
-                            except ValueError:
-                                stdscr.addstr(6, 0, "Invalid format. Use '<servo> <position>', e.g., '1 left' ")
-                                stdscr.refresh()
-                            command = ""  # Reset command after processing
-                    else:
-                        command += char
-                        stdscr.addstr(5, 30, command + " " * 20)
-                        stdscr.refresh()
-            except ValueError:
-                stdscr.addstr(6, 0, "Invalid input detected                    ")
-                stdscr.refresh()
-    finally:
-        chip.close()
-        stdscr.addstr(6, 0, "GPIO resources released.                  ")
-        stdscr.refresh()
-        curses.nocbreak()
-        stdscr.keypad(False)
-        curses.echo()
-        curses.endwin()
+try:
+      for line in process.stdout:
+            line = line.strip()
+            line = int(line.split("Received ")[1])
+            #print(line)  # Optional: raw output for debugging
+            if line < 15728640 or line > 16777215:
+                continue
+            if (line >> 20) & 0xF == 0b1111:
+                x = (line >> 10) & 0x3FF
+                y = line & 0x3FF
 
-if __name__ == '__main__':
-    curses.wrapper(main)
+                #print(f"Valid packet x: {x:4d} y: {y:4d}")
+                status = "NO MOVEMENT"
 
+                if x < 200 and y < 700:
+                    status = "RIGHT"
+                    shifty_motor1(100)
+                    shifty_motor2(0)
+                elif x > 700 and y < 700:
+                    status = "LEFT"
+                    shifty_motor1(0)
+                    shifty_motor2(100)
+                elif x < 700 and y > 700:
+                    status = "FORWARD"
+                    shifty_motor1(50)
+                    shifty_motor2(50)
+                else:
+                    shifty_motor1(0)
+                    shifty_motor2(0)               
+           
+                #print(f">>> Received code: {line} → Classified as: {status}")
+
+except KeyboardInterrupt:
+    print("\nExiting gracefully...")
+finally:
+    process.terminate()
+    process.wait()  # Clean shutdown
 
 
 ```
 
-### Step 4 - Remotely operate with raspberry pi
+With the RF sniffer code pin 3 refers to the wiring pi pin (as explained [here](https://projects.drogon.net/raspberry-pi/wiringpi/pins/) that corresponds to GPIO22 on the RPi 5 ):
+```
+/*
+  RFSniffer
 
-SSH into the pi then run the code using python3 [file_name]. Forward to go forward, right to turn wheels right, left to turn, down to turn wheels to their central position. Alternatively you can control it using the servo number and the desired position (e.g 1 left, or 2 max).
+  Usage: ./RFSniffer [<pulseLength>]
+  [] = optional
 
-## Project overview
+  Hacked from http://code.google.com/p/rc-switch/
+  by @justy to provide a handy RF code sniffer
+*/
 
-### Main lesson learned
+#include "../rc-switch/RCSwitch.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+     
+     
+RCSwitch mySwitch;
+ 
 
-Don't try and make your own drivetrain using a 3D printer with terrible tolerances and a slow extrusion speed - not worth it.
 
-### Next steps
+int main(int argc, char *argv[]) {
+  
+     // This pin is not the first pin on the RPi GPIO header!
+     // Consult https://projects.drogon.net/raspberry-pi/wiringpi/pins/
+     // for more information.
+     int PIN = 3;
+     
+     if(wiringPiSetup() == -1) {
+       printf("wiringPiSetup failed, exiting...");
+       return 0;
+     }
 
-Make the rover autonomous. See LunaRoverA25 project.
+     int pulseLength = 0;
+     if (argv[1] != NULL) pulseLength = atoi(argv[1]);
+
+     mySwitch = RCSwitch();
+     if (pulseLength != 0) mySwitch.setPulseLength(pulseLength);
+     mySwitch.enableReceive(PIN);  // Receiver on interrupt 0 => that is pin #2
+     
+    
+     while(1) {
+  
+      if (mySwitch.available()) {
+    
+        unsigned long value = mySwitch.getReceivedValue();
+    
+        if (value == 0) {
+          printf("Unknown encoding\n");
+        } else {    
+   
+          printf("Received %lu\n", mySwitch.getReceivedValue() );
+        }
+    
+        fflush(stdout);
+        mySwitch.resetAvailable();
+      }
+      usleep(100); 
+  
+  }
+
+  exit(0);
+
+
+}
+
+
+```
+
+## Conclusion
+It works as an RC car, but its clear there are some areas of improvement. Notably:
+* High latency in processing movement commands. I think this is due to a combination of the fact that I am a. using a RPi as a "middleman" to process received commands into PWM signals, b. using a 433 MHz tansmitter and receiver. To improve this I could use a 2.4GHz transmitter and receiver which sends signals directly to the speed controller (bypassing signals being sent to the RPi entirely and replacing the two enormous BTS7960 motor drivers with a single dual motor ESC).
+* Drivetrain weight. Its heavyand takes up a lot of space. In hindsight planetary gears would've been more ideal. The fact that the gear ratio is configurable isn't very useful as a. its tedious to change the ratio, and b. I never change the ratio.
+* Lawnmover wheels. They were free, and I love recycling, but they ice skate on my laminate wood flooring. Not a massive issue as intend on using the vehicle outside.
+* Clearance between underneath of the body and the floor is minimal. This is an issue as the drag through long grass is a problem. If I were to redesign I'd have an axle run under the body (as they do in cars).
