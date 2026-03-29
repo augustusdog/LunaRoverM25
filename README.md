@@ -21,7 +21,7 @@ Create a radio controlled (rc) car which can drive autonomously at the flick of 
 
 ## Method
 ### Design new RC car, with a customisable drivetrain
-#### Step 1 - Design the RC car
+#### Step 1 - Design the RC car (as per V2)
 The premise for designing my own RC car from scratch was to address the two failure points alluded to above:
 a. Not enough torque
 b. Steering mechanism getting caught in long grass
@@ -30,15 +30,15 @@ Point "a" can be addressed by having a drivetrain where gear ratio can easily be
 
 ![Design](./LunaRoverMk2.png)
 
-#### Step 2 - Design the electronics
+#### Step 2 - Design the electronics (improved for V3)
 
-The circuit design allows for PWM signals to be sent from the raspberry pi to the brushed dc motors, via the motor drivers. To do that it is necessary that 3.3V logic signals from the raspberry pi are converted to 5V logic signals which can be interpreted by the BTS7960 motor driver. Different PWM signals are sent depending on the Radio Frequency (RF) data received.
+As discussed in the summary above, marked changes have improved latency of control and simplicity of the design. Note that the receiver channel used is configurable from the receiver and transmitter sides.
 
-![circuit design](./rc_car.svg)
+![circuit design](./rc_v3_circuit.png)
 
 ## Conclusion
-It works as an RC car, but its clear there are some areas of improvement. Notably:
-* High latency in processing movement commands. I think this is due to a combination of the fact that I am a. using a RPi as a "middleman" to process received commands into PWM signals, b. using a 433 MHz tansmitter and receiver. To improve this I could use a 2.4GHz transmitter and receiver which sends signals directly to the speed controller (bypassing signals being sent to the RPi entirely and replacing the two enormous BTS7960 motor drivers with a single dual motor ESC).
-* Drivetrain weight. Its heavyand takes up a lot of space. In hindsight planetary gears would've been more ideal. The fact that the gear ratio is configurable isn't very useful as a. its tedious to change the ratio, and b. I never change the ratio.
-* Lawnmover wheels. They were free, and I love recycling, but they ice skate on my laminate wood flooring. Not a massive issue as intend on using the vehicle outside.
-* Clearance between underneath of the body and the floor is minimal. This is an issue as the drag through long grass is a problem. If I were to redesign I'd have an axle run under the body (as they do in cars).
+Marked improvement on V2 as an RC car. However, still room for improvements - particular in these areas:
+* Increase ground clearance
+* Improve wheels (look into use of TPU to improve traction on shiny surfaces)
+* 12V LiPo battery instead of 7.2V NiMh battery
+* Reduce complexity (for example: configurable gears useless for most - planetary gearbox attached to motor more practicable and would weigh less).
