@@ -1,8 +1,8 @@
-# LunaRoverM25-V2
-LunaRoverA25 had some issues with a. torque, b. steering. LunaRoverM25-V2 aims to overcome these problems
+# LunaRoverM25-V3
+LunaRoverM25 V2 had some issues with a. high latency control, b. spagehetti wires. c. insufficient ground clearance. LunaRoverM25-V3 overcome a. and b., but not c.
 
 ## Bottom line up front
-LunaRoverV2 did address issues with torque and steering, but uncovered a swathe of other issues... most notably (in order of perceived importance): high latency control, drag (from weight and bad clearance), and spaghetti cables.
+LunaRoverV3 has addressed the high latency control and spaghetti control issues by redesigning the electronics. Previously, in V2, signals were communicated to the device using a cheap 433MHz transmitter-receiver set - which are constrained by how fast they can modulate and demodulate a signal (for example: in my case the receiver wouldn't receive signals transmitted every transmit cycle - leading to delay where it would have to wait for another transmission). To combat this, V3 uses a 2.4GHz transmitter-receiver set (the Flysky FS-i6X). However, another reason for high latency control  in V2 was that signals received were processed by a RPi 5 (using Python) - therefore incurring interpretation delay repreatedly during execution. To counter this I decided to ignore the RPi 5 for the time being and connect the 2.4Ghz receiver directly to an electronic speed controller (I'm using the Kingmodel 40AX2 - which is relatively cheap but which should be able to handle the peak stall current I anticipate from my 2 x brushed 775 motors). These changes have removed the requirement for 2 x motor driver, 2 x level shifters, and many cables connecting them to each other and to the RPi 5.
 
 As tempting as it is to just buy a really great looking tracked vehicle which can carry a 10kg payload (fro AliExpress), I've thought of some quick ways in which I think I can improve the LunaRover - which are: flip it upside down for more clearance (will remount electronics), replace control mechanism with a 2.4GHz transmitter and ESC.
 
