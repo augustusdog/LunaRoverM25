@@ -24,3 +24,4 @@ Marked improvement on V2 as an RC car. Further work should focus in these areas:
 * Replace drivetrain with planetary gears to reduce complexity.
 
 ## V3 images
+![isometric view](./IMG_0016.png)
