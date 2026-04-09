@@ -25,3 +25,4 @@ Marked improvement on V2 as an RC car. Further work should focus in these areas:
 
 ## V3 images
 ![isometric view](./IMG_0016.png)
+![drivetrain view](./IMG_0019.png)
